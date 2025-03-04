@@ -1,0 +1,539 @@
+---
+title: 'MA30085, Time Series - Coursework'
+author: 'Morgan Rhys Williams'
+date: '28/03/2024 noon till 17/04/2024 noon'
+output:
+  pdf_document: default
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+solution<-TRUE
+```
+
+# Description of coursework
+For this assignment, you must perform a data analysis task. Data consist of 2 time series randomly selected from the *lts0.Rda* data file (containing 1000 time series). The goal for you is to study carefully both time series, and attempt to model them using the main steps of the Box-Jenkins methodology.
+
+The coursework will be marked based on the statistical reasoning that has led to your conclusions. Thus to carry through the appropriate statistical tasks and reasoning is more important than the conclusions themselves. The highest score achievable is 100 (60 for series 1 and 40 for series 2).
+
+A thorough illustration of this way of proceeding is included in the document prepared for the computational laboratory 3. You can use that document as guidance, but should also feel free to attempt other types of investigation, if necessary.
+
+If you have followed all lectures, studied the related material and followed all computational laboratories, the time required to analyse both time series turns out to be approximately six to eight hours.
+
+# Preparation - How to obtain your data
+
+## Creation of random seed
+The two time series to be analysed are different for each student. Your data are obtained using an integer seed, generated using your unique student number. More specifically, the integer seed to generate the random numbers used for the work consists of the last five digits of your unique, 9-digits, student number. Representing a student number with letters,
+
+student number = $abcdefghi$,
+
+the seed number is
+
+seed number = $efghi$
+
+For example, if your unique student number is 179238011, your seed number is 38011. Or, if your unique student number is 179200810, your seed number is 810, because 00810 is interpreted by R as 810.
+
+## Extraction of time series
+The time series for your coursework are extracted randomly from a binary file named *lts0.Rda*. This file **must be** located in the same directory in which you have transferred this R markdown document, *MA30085_coursework.Rmd*.
+
+By running the code in the R chunk below, you will automatically import the two time series, called `tser1` and `tser2`. They are objects of class `ts`. If the operation is successful, you should see both time series displayed in a graphic. Once this is done, you are ready for the analysis. 
+
+# Type of time series simulated
+The **first time series** (`tser1`) is a simulation of an ARIMA process, $\{X_t,\;t\in\mathbb{Z}\}$, described by the difference equation
+\begin{equation*}
+\phi(B)(1-B)^dX_t=\theta(B)Z_t,
+\end{equation*}
+where $\phi(\lambda)$ is the AR characteristic polynomial of order $p$, $\theta(\lambda)$ is the MA characteristic polynomial of order $q$, $\{Z_t,\;t\in\mathbb{Z}\}$ a Gaussian white noise process with mean $0$ and standard deviation $1$, and where $B$ is the backward shift operator. The parameters $p$, $q$ and $d$ of the ARIMA($p,d,q$) process are integers with the following range:
+$$
+d=0,1,2\qquad p=0,1,2,3\qquad q=0,1,2,3.
+$$
+The **second time series** (`tser2`), $Y_t$, has the form
+$$
+Y_t=X_t+m_t,
+$$
+where $X_t$ is an ARIMA($p,d,q$) process different from that of the first time series, with
+$$
+d=0,1\qquad p=0,1,2\qquad q=0,1,2,
+$$
+and where $m_t$ is a deterministic polynomial of degree $1$ or $2$.
+
+
+# R chunk for importing data
+Below is the R chunk needed to get your work started, as instructed earlier. Once executed, please add all necessary text, code and graphics (please, make sure the size of the graphics window is big enough for me to check details) under the line **SOLUTION**. The final work should be uploaded on Crowdmark as a PDF document.
+
+```{r echo=TRUE}
+#************************#
+#!!! VERY IMPORTANT !!!
+#************************#
+# Please, replace the "2" inside set.seed() with your
+# unique seed. Failure to do so might result in your work
+# being penalised
+set.seed(77631)
+
+#************************#
+#!!! VERY IMPORTANT !!!
+#
+#  DON'T MODIFY THE LINES 
+#  IN THE REMAINING CODE
+#
+#************************#
+# Loading data
+load("lts0.Rda")
+
+# Extracting time series
+idx1 <- sample(1:500,size=1)
+idx2 <- sample(501:1000,size=1)
+tser1 <- lts0[[idx1]]
+tser2 <- lts0[[idx2]]
+
+# Test you've got the time series in the workspace
+par(mfrow=c(2,1))
+plot(tser1)
+plot(tser2)
+
+# Back to one plot per window
+par(mfrow=c(1,1))
+```
+
+**SOLUTION**
+1
+```{r}
+plot(tser1)
+```
+
+The visual impression of 'tser1' is of a stationary series. We plot the sample ACF. A stationary series will have a fast (exponential/sinusoidal) decay or a truncation, while a slow decay is typical of a non-stationary series.  
+
+```{r}
+acf(tser1, lag.max = 100)
+```
+
+The sample ACF plot exhibits fast sinusoidal decay, indicative of a stationary series.
+Conducting a Kolmogorov-Smirnov test will help determine whether or not 'tser1' is stationary and thus follows a Gaussian distribution. The null and alternative hypotheses are as follows:
+
+$H_0$: the time series is stationary
+$H_1$: the time series is non-stationary
+
+```{r}
+x1 <- tser1[1:250]
+y1 <- tser1[251:500]
+
+ks.test(x1,y1)
+```
+
+A high $p$-value means we accept the null and thus 'tser1' is a stationary series.
+
+Another test for stationarity we can conduct is the *Augmented Dickey-Fuller test* (ADF test). It targets the presence of one or more unit roots in the series. The null and alternative hypotheses are as follows:
+
+$H_0$: the time series is non-stationary
+$H_1$: the time series is stationary
+
+```{r}
+library(tseries)
+
+adf.test(tser1)
+adf.test(tser1, k = 10)
+adf.test(tser1, k = 15 )
+```
+
+The test, consistently, returns a small $p$-value confirming, once again, that the series is stationary.
+We have ensured that our time series is stationary, and that 'tser1' is an ARIMA($p, d, q$) process with $d = 0$.
+To determine $p$ and $q$, we use the interplay of the sample ACF and the sample PACF.
+
+```{r}
+acf(tser1)
+pacf(tser1)
+```
+
+Both the ACF and PACF are gradually decreasing. Therefore  an ARMA($p, q$) model is appropriate for this series.  To determine the order $p, q$, we start with the simplest ARMA model, ARMA(1,1), and compare against other ARMA models of varying orders $p, q$. An important piece of information coming from these models is whether or not the 95% confidence intervals exclude $0$. Confidence intervals excluding $0$ means the model has significant parameters and is therefore an appropriate model for the time series data. 
+```{r}
+arma11 <- arima(tser1, order = c(1, 0, 1))
+print(arma11)
+
+arma11$coef - 2 * sqrt(diag(arma11$var.coef)) #95% Confidence Interval
+arma11$coef + 2 * sqrt(diag(arma11$var.coef))
+```
+
+All confidence intervals of the ARMA(1,1) model exclude 0, thus all parameters are significant and the model is appropriate.
+
+```{r}
+arma12 <- arima(tser1, order = c( 1, 0, 2))
+print(arma12)
+
+arma12$coef - 2 * sqrt(diag(arma12$var.coef)) #95% Confidence Interval
+arma12$coef + 2 * sqrt(diag(arma12$var.coef))
+```
+
+All confidence intervals of the ARMA(1,2) model do not exclude 0, thus not all parameters are significant and the model is deemed not appropriate.
+
+```{r}
+arma13 <- arima(tser1, order = c( 1, 0, 3))
+print(arma13)
+
+arma13$coef - 2 * sqrt(diag(arma13$var.coef)) #95% Confidence Interval
+arma13$coef + 2 * sqrt(diag(arma13$var.coef))
+```
+
+All confidence intervals of the ARMA(1,3) model exclude 0, thus all parameters are significant and the model is appropriate.
+
+```{r}
+arma21 <- arima(tser1, order = c(2, 0, 1))
+print(arma21)
+
+arma21$coef - 2 * sqrt(diag(arma21$var.coef)) #95% Confidence Interval
+arma21$coef + 2 * sqrt(diag(arma21$var.coef))
+```
+
+All confidence intervals of the ARMA(2,1) model exclude 0, thus all parameters are significant and the model is appropriate.
+
+```{r}
+arma22 <- arima(tser1, order = c( 2, 0, 2))
+print(arma22)
+
+arma22$coef - 2 * sqrt(diag(arma22$var.coef)) #95% Confidence Interval
+arma22$coef + 2 * sqrt(diag(arma22$var.coef))
+```
+
+All confidence intervals of the ARMA(2,2) model do not exclude 0, thus not all parameters are significant and the model is deemed not appropriate.
+
+```{r}
+arma23 <- arima(tser1, order = c( 2, 0, 3))
+print(arma23)
+
+arma23$coef - 2 * sqrt(diag(arma23$var.coef)) #95% Confidence Interval
+arma23$coef + 2 * sqrt(diag(arma23$var.coef))
+```
+
+All confidence intervals of the ARMA(2,3) model do not exclude 0, thus not all parameters are significant and the model is deemed not appropriate.
+
+```{r}
+arma31 <- arima(tser1, order = c( 3, 0, 1))
+print(arma31)
+
+arma31$coef - 2 * sqrt(diag(arma31$var.coef)) #95% Confidence Interval
+arma31$coef + 2 * sqrt(diag(arma31$var.coef))
+```
+
+All confidence intervals of the ARMA(3,1) model do not exclude 0, thus not all parameters are significant and the model is deemed not appropriate.
+
+```{r}
+arma32 <- arima(tser1, order = c( 3, 0, 2))
+print(arma32)
+
+arma32$coef - 2 * sqrt(diag(arma32$var.coef)) #95% Confidence Interval
+arma32$coef + 2 * sqrt(diag(arma32$var.coef))
+```
+
+All confidence intervals of the ARMA(3,2) model do not exclude 0, thus not all parameters are significant and the model is deemed not appropriate.
+
+```{r}
+arma33 <- arima(tser1, order = c( 3, 0, 3))
+print(arma33)
+
+arma33$coef - 2 * sqrt(diag(arma33$var.coef)) #95% Confidence Interval
+arma33$coef + 2 * sqrt(diag(arma33$var.coef))
+```
+
+All confidence intervals of the ARMA(3,3) model do not exclude 0, thus not all parameters are significant and the model is deemed not appropriate.
+The estimates of the data variance for each model are close to its correct value $1$, with ARIMA($3, 0, 3$) being closest.
+
+Comparing AIC of the candidate models.
+
+```{r}
+AIC_arma11 <- AIC(arma11)
+AIC_arma12 <- AIC(arma12)
+AIC_arma13 <- AIC(arma13)
+AIC_arma21 <- AIC(arma21)
+AIC_arma22 <- AIC(arma22)
+AIC_arma23 <- AIC(arma23)
+AIC_arma31 <- AIC(arma31)
+AIC_arma32 <- AIC(arma32)
+AIC_arma33 <- AIC(arma33)
+AIC_values <- c(AIC_arma11, AIC_arma12, AIC_arma13, AIC_arma21, AIC_arma22, AIC_arma23, AIC_arma31, AIC_arma32, AIC_arma33)
+Candidates <- c('ARMA(1,1)', 'ARMA(1,2)', 'ARMA(1,3)', 'ARMA(2,1)', 'ARMA(2,2)', 'ARMA(2,3)', 'ARMA(3,1)', 'ARMA(3,2)', 'ARMA(3,3)')
+IC_table <- data.frame(Candidates, AIC_values)
+sorted_AIC <- IC_table[order(AIC_values),]
+sorted_AIC
+subset(sorted_AIC, Candidates %in% c('ARMA(1,1)', 'ARMA(1,3)', 'ARMA(2,1)'))
+```
+
+According to AIC, ARIMA($3, 0, 1$) is the best model for these data. However, excluding the non-appropriate models discovered earlier, we see that it is ARIMA($2, 0, 1$)  that is the best model for these data with an AIC of $1457.762$.
+
+The model found is described by the following equation which includes also a mean, $\mu$:
+$$
+X_t-\widehat{\mu}=\sum_{i=1}^p \widehat{\alpha}_i(X_{t-i}-\widehat{\mu})+Z_t+
+\sum_{i=1}^q\widehat{\beta}_i Z_{t-i},
+$$
+In our case, with $\widehat{\mu} = -0.004$ which has 95% confidence interval $(-0.0321, 0.0240)$,
+$$
+X_t+0.004= \widehat{\alpha}_1(X_{t-1}+0.004)+\widehat{\alpha}_2(X_{t-2}+
+0.004)+Z_t+
+\widehat{\beta}_1 Z_{t-1}
+$$
+$$
+\begin{array}{lc}
+\text{Estimated Coefficients (with 95\% Confidence Intervals)}\\
+\widehat{\alpha}_1= -0.6437 \quad (-0.7733, -0.5141) \\
+\widehat{\alpha}_2= -0.4657 \quad (-0.5720, -0.3594) \\
+\widehat{\beta}_1= -0.3582 \quad (-0.5038, -0.2125) 
+\end{array}
+$$
+The verification of the goodness of fit of the model chosen is based on the residuals. A plot of the residuals time series and its sample ACF should be compatible with that of white noise, i.e. a Gaussian distribution. A plot of the $p$-values of the Ljung-Box statistic over a range of lags will also show whether the residuals are compatible with being white noise.
+
+```{r}
+tsdiag(arma21)
+```
+
+The ACF of the residuals is truncated at lag 0, indicative of a Gaussian process. The $p$-values of the Ljung-Box test for ARIMA($2, 0, 1$) are clearly compatible with the residuals being white noise.
+
+```{r}
+residuals21 <- residuals(arma21)
+qqnorm(residuals21)
+qqline(residuals21)
+```
+
+A quantile-quantile plot of the residuals also supports this claim.
+
+Let us try the same with the other models, ARIMA($1, 0, 3$) and ARIMA($1, 0, 1$).
+
+```{r}
+tsdiag(arma13)
+```
+```{r}
+residuals13 <- residuals(arma13)
+qqnorm(residuals13)
+qqline(residuals13)
+```
+
+The ACF of the residuals also has a spike at lag 0 but includes significant spikes at other lags, namely 4, 5, 6 etc. and is therefore not indicative of a Gaussian process. The $p$-values of the Ljung-Box test for ARIMA($1,0, 3$) are clearly not compatible with the residuals being white noise, despite the QQ plot looking somewhat appropriate. 
+
+```{r}
+tsdiag(arma11)
+```
+```{r}
+residuals11 <- residuals(arma11)
+qqnorm(residuals11)
+qqline(residuals11)
+```
+
+The ACF of the residuals also has a spike at lag 0 but includes significant spikes at other lags, namely 2 & 3, and is therefore not indicative of a Gaussian process.The $p$-values of the Ljung-Box test for ARIMA($1,0, 1$) are clearly not compatible with the residuals being white noise, despite the QQ plot looking somewhat appropriate. Therefore, we can be satisfied that the ARIMA($2, 0, 1$) model describes the data given here in the best way.
+
+Hence our model is given by:
+$$X_t+0.004 = -0.6437(X_{t-1} + 0.004) - 0.4657(X_{t-2} + 0.004) + Z_t - 0.3582Z_{t-1}.$$
+
+2
+
+```{r}
+plot(tser2)
+```
+
+We know that 'tser2' is a non-stationary series with a deterministic polynomial trend. To determine the degree of the polynomial trend we difference the series until we have a stationary process.
+If the differenced series is stationary the polynomial will be of degree 1. If the once differenced series is not stationary but the twice differenced series is then the polynomial trend is of degree 2.
+
+```{r}
+dtser2 <- diff(tser2)
+plot(dtser2)
+```
+
+Visually the differenced series looks stationary. We will conduct KS and ADF tests to verify this.
+
+```{r}
+x2 <- dtser2[1:50]
+y2 <- dtser2[51:99]
+ks.test(x2, y2)
+```
+
+A high $p$-value means we accept the null and thus $X_t$ is a stationary series according to the KS test.
+
+```{r}
+adf.test(dtser2)
+adf.test(dtser2, k = 10)
+adf.test(dtser2, k = 15)
+```
+
+The ADF test returns a small $p$-value but only for lag order 4 and not for higher lag orders indicating non-stationarity over higher orders. This could also potentially be caused by the small sample size of 100 for this time series.
+We will difference the series again and conduct the same tests to determine whether or not the twice differenced series is stationary and therefore that the polynomial trend is of degree 2.
+
+```{r}
+ddtser2 <- diff(dtser2)
+plot(ddtser2)
+```
+Visually this twice-differncec series looks stationary and the KS and ADF tests support this.
+
+```{r}
+x3 <- ddtser2[1:49]
+y3 <- ddtser2[50:98]
+ks.test(x3, y3)
+```
+
+A high $p$-value means we accept the null and thus $X_t$ is a stationary series according to the KS test.
+
+```{r}
+adf.test(ddtser2)
+adf.test(ddtser2, k = 10)
+adf.test(ddtser2, k = 15)
+```
+
+The test, consistently, returns small $p$-values confirming, once again, that this series is stationary.The equations below shows what differencing has done to our model, where $\nabla$ is the difference operator. 
+
+$$
+Y_t = X_t + at^2 + bt + c \\
+\nabla Y_t = \nabla X_t + 2at - a + b \\
+\nabla^2 Y_t = \nabla^2 X_t +2a
+$$
+
+To determine the coefficients $a, b, c$ we run a linear regression of the time series against varying degrees of time up to degree 3 to verfiy our claim that the polynomial trend is of degree 2. We should expect significant coefficients up to degree 2 by the information discovered above.
+
+```{r}
+time_index <- seq_along(tser2) #values of t 
+lm <- lm(tser2 ~ time_index) #linear regression
+summary(lm)
+
+qm <- lm(tser2 ~ time_index + I(time_index^2)) #quadratic regression
+summary(qm)
+
+cm <- lm(tser2 ~ time_index + I(time_index^2) + I(time_index^3)) #cubic regression
+summary(cm)
+```
+
+All coefficients are significant except the degree 3 time index coefficient of the cubic model, confirming that our trend is of degree 2. The coefficient $a$ for the quadratic term of our quadratic regression appears significant despite being very small which we will look into. The plots below help visualise the estimated regressions.
+
+```{r}
+x <- seq(0,100, by = 1)
+2*qm$coefficients[3]
+y = lm$coefficients[2] * x + lm$coefficients[1]
+plot(tser2, main = 'Plot of Linear Regression')
+lines(x,y, col='red')
+
+y_quad = qm$coefficients[3] * x^2 + qm$coefficients[2] * x + qm$coefficients[1]
+plot(tser2, main = 'Plot of Quadratic Regression')
+lines(x, y_quad, col='red')
+```
+
+Both regressions appear appropriate, with a stronger visual relationship with the quadratic model. A look at the diagnostic plots for each regression will provide more information about the normality of the regression residuals.
+
+```{r}
+plot(lm,1:2)
+```
+
+The diagnostic plots for the residuals of the linear regression are not distributed normally and exhibit a non-linear residual. This invalidates the assumption of normality.
+
+```{r}
+plot(qm,1:2)
+```
+
+The diagnostic plots for the residuals of the quadratic regression show much clearer signs of normality. Therefore we can conclude that the trend polynomial is quadratic in nature.
+
+Our model is therefore:
+$$
+Y_t=X_t+\widehat{a}t^2+\widehat{b}t+\widehat{c},
+$$
+$$
+\begin{array}{lc}
+\text{Estimated Coefficients (with 95\% Confidence Intervals)}\\
+\widehat{a}= 0.0040 \quad (0.0037, 0.0043) \\
+\widehat{b}= 0.4967\quad (0.4940, 0.4994) \\
+\widehat{c}= 50.30 \quad (44.37, 56.23)
+\end{array}
+$$
+We can now rearrange $Y_t$ to run analysis on $X_t$:
+$$
+Y_t=X_t+\widehat{a}t^2+\widehat{b}t+\widehat{c}\\
+X_t=Y_t-\widehat{a}t^2-\widehat{b}t-\widehat{c},
+$$
+```{r}
+m_t <- function(t) 3.992e-3 * t^2 + 4.967e-1 * t + 50.3
+
+X_t <- tser2 - m_t(1:length(tser2))
+plot(X_t)
+```
+
+The visual impression of $X_t$ is of a stationary series. We plot the sample ACF. A stationary series will have a fast (exponential/sinusoidal) decay or a truncation, while a slow decay is typical of a non-stationary series.  
+
+```{r}
+acf(X_t, lag.max = 100)
+pacf(X_t, lag.max = 100)
+```
+
+The sample ACF plot exhibits a truncation at lag 0, indicative of a stationary series, namely a Gaussian process. A Gaussian process is inherently stationary, conducting a Kolmogorov-Smirnov test should support this claim. The null and alternative hypotheses are as follows:
+
+$H_0$: the time series is stationary
+$H_1$: the time series is non-stationary
+
+```{r}
+x4 <- X_t[1:50]
+y4 <- X_t[51:100]
+
+ks.test(x4,y4)
+```
+
+A high $p$-value means we accept the null and thus $X_t$ is a stationary series.
+
+Applying the ADF test to a Gaussian process may not be meaningful, as white noise is already stationary and lacks the characteristics that the ADF test is designed to detect i.e a unit root.
+
+```{r}
+adf.test(X_t)
+adf.test(X_t,k=10)
+adf.test(X_t,k=15)
+``` 
+
+The test, returns a small p-value but only for lag order 4 and not for higher lag orders leading to inconclusive results as expected. This could also potentially be caused by the small sample size of 100 for this time series.
+
+Assuming $X_t$ is a Gaussian process, the appropriate model should be an ARIMA($0, 0, 0$) process. 
+We will compare with other similar process to verify.
+
+```{r}
+ModelA <- arima(X_t, order = c(0, 0, 0))
+print(ModelA)
+
+ModelA$coef - 2 * sqrt(diag(ModelA$var.coef))
+ModelA$coef + 2 * sqrt(diag(ModelA$var.coef))
+```
+```{r}
+ModelB <- arima(X_t, order = c( 0, 0, 1))
+print(ModelB)
+
+ModelB$coef - 2 * sqrt(diag(ModelB$var.coef))
+ModelB$coef + 2 * sqrt(diag(ModelB$var.coef))
+```
+
+All confidence intervals of the ARMA(0,1) model do not exclude 0, thus not all parameters are significant and the model is deemed not appropriate.
+
+```{r}
+ModelC <- arima(X_t, order = c( 1, 0, 0))
+print(ModelC)
+
+ModelC$coef - 2 * sqrt(diag(ModelC$var.coef))
+ModelC$coef + 2 * sqrt(diag(ModelC$var.coef))
+```
+
+All confidence intervals of the ARMA(1,0) model do not exclude 0, thus not all parameters are significant and the model is deemed not appropriate.
+
+```{r}
+ModelD <- arima(X_t, order = c( 1, 0, 1))
+print(ModelD)
+
+ModelD$coef - 2 * sqrt(diag(ModelD$var.coef))
+ModelD$coef + 2 * sqrt(diag(ModelD$var.coef))
+```
+
+All confidence intervals of the ARMA(1,1) model do not exclude 0, thus not all parameters are significant and the model is deemed not appropriate.
+
+The estimates of the data variance for the only appropriate model, which additionally had the lowest AIC at $282.3$, ARIMA($0, 0, 0$) is close to its correct value $1$, at $0.9466$. As none of the other models are appropriate we can conclude that $X_t$ is an ARIMA($0, 0, 0$) process i.e. white noise. 
+
+A plot of the residuals time series and its sample ACF should be compatible with that of white noise, i.e. a Gaussian distribution. A plot of the $p$-values of the Ljung-Box statistic over a range of lags will also show whether the residuals are compatible with being white noise.
+
+```{r}
+tsdiag(ModelA)
+```
+
+The ACF of Residuals and $p$-values of the Ljung-Box test for ARIMA($0, 0, 0$) are clearly compatible with the residuals being white noise, verifying our claim.
+
+Our model is therefore:
+$$
+Y_t=Z_t+0.0040t^2+0.4967t+50.30.
+$$
+
+
